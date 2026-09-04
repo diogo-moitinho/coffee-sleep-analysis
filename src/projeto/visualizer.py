@@ -159,7 +159,7 @@ def _convert_to_numeric(df: pd.DataFrame, include=()):
     return num
 
 
-def plot_correlation_heatmaps(df: pd.DataFrame, include=()):
+def plot_correlation_heatmaps(df: pd.DataFrame, include=(), top_n: int = 10):
     num = _convert_to_numeric(df, include=include)
     
     if num.shape[1] < 2:
@@ -182,6 +182,32 @@ def plot_correlation_heatmaps(df: pd.DataFrame, include=()):
     fig.suptitle("Variable Correlation Analysis", fontsize=16, fontweight='bold', y=1.02)
     plt.tight_layout()
     plt.show()
+
+    # Cria máscara para considerar apenas o triângulo inferior (evita diagonal e pares duplicados)
+    mask = np.tril(np.ones(cp.shape), k=-1).astype(bool)
+
+    # Extrai e formata os pares para Pearson e Spearman
+    p_flat = cp.where(mask).stack().reset_index()
+    p_flat.columns = ['Var1', 'Var2', 'Pearson']
+
+    s_flat = cs.where(mask).stack().reset_index()
+    s_flat.columns = ['Var1', 'Var2', 'Spearman']
+
+    # Consolida em um único DataFrame
+    top_corr = pd.merge(p_flat, s_flat, on=['Var1', 'Var2'])
+
+    # Ordena pela magnitude absoluta da correlação (captura tanto fortemente positivas quanto negativas)
+    top_corr['Abs_Pearson'] = top_corr['Pearson'].abs()
+    top_corr = (
+        top_corr.sort_values(by='Abs_Pearson', ascending=False)
+        .drop(columns=['Abs_Pearson'])
+        .reset_index(drop=True)
+    )
+
+    if top_n is not None:
+        top_corr = top_corr.head(top_n)
+
+    return top_corr
 
 
 def generate_quantitative_panel(df: pd.DataFrame, features: list, hue=None, color_map=None):
